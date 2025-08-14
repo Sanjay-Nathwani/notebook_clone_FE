@@ -11,9 +11,13 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.11",
+    "highlight.js": "^11.11.1",
     "lucide-react": "^0.539.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.11"
   },
   "devDependencies": {

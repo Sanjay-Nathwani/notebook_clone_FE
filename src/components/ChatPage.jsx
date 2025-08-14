@@ -1,13 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, ArrowLeft, FileText, User, Bot } from 'lucide-react';
-import PDFViewer from './PDFViewer';
+import React, { useState, useRef, useEffect } from "react";
+import { Send, ArrowLeft, FileText, User, Bot } from "lucide-react";
+import PDFViewer from "./PDFViewer";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
+import "highlight.js/styles/github.css";
 
 const ChatPage = ({ documentData, onBack }) => {
   const [messages, setMessages] = useState([]);
-  const [inputMessage, setInputMessage] = useState('');
+  const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPdf, setShowPdf] = useState(true);
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -22,97 +27,157 @@ const ChatPage = ({ documentData, onBack }) => {
     setMessages([
       {
         id: 1,
-        type: 'bot',
+        type: "bot",
         content: `Hello! I'm ready to help you analyze "${documentData.fileName}". You can ask me questions about the document's content, request summaries, or explore specific topics. What would you like to know?`,
-        timestamp: new Date()
-      }
+        timestamp: new Date(),
+      },
     ]);
   }, [documentData.fileName]);
+
+  // Auto-resize textarea based on content
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(
+        textareaRef.current.scrollHeight,
+        200
+      )}px`;
+    }
+  }, [inputMessage]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
 
     const userMessage = {
       id: Date.now(),
-      type: 'user',
+      type: "user",
       content: inputMessage,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
+    setMessages((prev) => [...prev, userMessage]);
+    setInputMessage("");
     setIsLoading(true);
 
     try {
-      const response = await fetch('https://notebook-clone-be.onrender.com/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fileId: documentData.fileId,
-          message: inputMessage,
-          chatHistory: messages.slice(-5) // Send last 5 messages for context
-        }),
-      });
+      const response = await fetch(
+        "https://notebook-clone-be.onrender.com/api/chat",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            fileId: documentData.fileId,
+            message: inputMessage,
+            chatHistory: messages.slice(-5), // Send last 5 messages for context
+          }),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error('Failed to get response');
+        throw new Error("Failed to get response");
       }
 
       const result = await response.json();
 
       const botMessage = {
         id: Date.now() + 1,
-        type: 'bot',
+        type: "bot",
         content: result.response,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
 
-      setMessages(prev => [...prev, botMessage]);
-
+      setMessages((prev) => [...prev, botMessage]);
     } catch (error) {
-      console.error('Chat error:', error);
+      console.error("Chat error:", error);
       const errorMessage = {
         id: Date.now() + 1,
-        type: 'bot',
-        content: 'Sorry, I encountered an error while processing your request. Please try again.',
+        type: "bot",
+        content:
+          "Sorry, I encountered an error while processing your request. Please try again.",
         timestamp: new Date(),
-        isError: true
+        isError: true,
       };
-      setMessages(prev => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
-  const formatMessage = (content) => {
-    // Simple formatting for better readability
-    return content.split('\n').map((line, index) => (
-      <p key={index} className="mb-2 last:mb-0">
-        {line}
-      </p>
-    ));
+  const renderMarkdown = (content) => {
+    return (
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeHighlight]}
+        components={{
+          code({ node, inline, className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            return !inline && match ? (
+              <div className="bg-gray-100 rounded-md p-3 my-2 overflow-x-auto">
+                <code className={className} {...props}>
+                  {children}
+                </code>
+              </div>
+            ) : (
+              <code
+                className="bg-gray-100 rounded px-1 py-0.5 text-sm"
+                {...props}
+              >
+                {children}
+              </code>
+            );
+          },
+          table({ node, children }) {
+            return (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse border border-gray-200">
+                  {children}
+                </table>
+              </div>
+            );
+          },
+          th({ node, children }) {
+            return (
+              <th className="border border-gray-300 px-3 py-2 bg-gray-100 font-semibold">
+                {children}
+              </th>
+            );
+          },
+          td({ node, children }) {
+            return (
+              <td className="border border-gray-300 px-3 py-2">{children}</td>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    );
   };
 
   const suggestedQuestions = [
     "What is the main topic of this document?",
     "Can you summarize the key points?",
     "What are the main conclusions or recommendations?",
-    "Are there any important statistics or data points?"
+    "Are there any important statistics or data points?",
   ];
 
   return (
     <div className="h-screen flex">
       {/* Chat Section */}
-      <div className={`flex flex-col ${showPdf ? 'w-1/2' : 'w-full'} transition-all duration-300`}>
+      <div
+        className={`flex flex-col ${
+          showPdf ? "w-1/2" : "w-full"
+        } transition-all duration-300`}
+      >
         {/* Header */}
         <div className="bg-white border-b border-gray-200 p-4">
           <div className="flex items-center justify-between">
@@ -137,7 +202,7 @@ const ChatPage = ({ documentData, onBack }) => {
               onClick={() => setShowPdf(!showPdf)}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
             >
-              {showPdf ? 'Hide PDF' : 'View PDF'}
+              {showPdf ? "Hide PDF" : "View PDF"}
             </button>
           </div>
         </div>
@@ -153,7 +218,7 @@ const ChatPage = ({ documentData, onBack }) => {
                 }`}
               >
                 <div
-                  className={`flex max-w-[80%] ${
+                  className={`flex max-w-[90%] ${
                     message.type === 'user' ? 'flex-row-reverse' : 'flex-row'
                   }`}
                 >
@@ -171,16 +236,25 @@ const ChatPage = ({ documentData, onBack }) => {
                     )}
                   </div>
                   <div
-                    className={`p-4 rounded-lg ${
+                    className={`p-4 rounded-lg max-w-full ${
                       message.type === 'user'
                         ? 'bg-purple-600 text-white'
                         : message.isError
                         ? 'bg-red-50 text-red-600 border border-red-200'
                         : 'bg-white text-gray-900 border border-gray-200'
                     }`}
+                    style={{
+                      wordBreak: 'break-word',
+                      overflowWrap: 'break-word'
+                    }}
                   >
-                    <div className="text-sm">
-                      {formatMessage(message.content)}
+                    <div className="text-sm prose max-w-none overflow-x-auto">
+                      {message.type === 'bot' ? renderMarkdown(message.content) : (
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
+                      )}
+                    </div>
+                    <div className="text-xs mt-1 text-right opacity-70">
+                      {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
                 </div>
@@ -197,10 +271,18 @@ const ChatPage = ({ documentData, onBack }) => {
                     <div className="flex items-center">
                       <div className="animate-pulse flex space-x-1">
                         <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div
+                          className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.1s" }}
+                        ></div>
+                        <div
+                          className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                          style={{ animationDelay: "0.2s" }}
+                        ></div>
                       </div>
-                      <span className="ml-2 text-sm text-gray-500">Thinking...</span>
+                      <span className="ml-2 text-sm text-gray-500">
+                        Thinking...
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -232,29 +314,43 @@ const ChatPage = ({ documentData, onBack }) => {
         {/* Input */}
         <div className="bg-white border-t border-gray-200 p-4">
           <div className="max-w-4xl mx-auto">
-            <div className="flex items-end space-x-3">
-              <div className="flex-1">
-                <textarea
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask about the document..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  rows={1}
-                  style={{
-                    minHeight: '48px',
-                    maxHeight: '120px',
-                    overflowY: inputMessage.split('\n').length > 3 ? 'auto' : 'hidden'
-                  }}
-                />
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Ask about the document..."
+                className="w-full px-4 py-3 pr-16 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                rows={1}
+                style={{
+                  minHeight: "48px",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                }}
+              />
+              <div className="absolute right-3 bottom-3 flex items-center space-x-2">
+                <span
+                  className={`text-xs ${
+                    inputMessage.length > 1000
+                      ? "text-red-500"
+                      : "text-gray-500"
+                  }`}
+                >
+                  {inputMessage.length}/1000
+                </span>
+                <button
+                  onClick={handleSendMessage}
+                  disabled={
+                    !inputMessage.trim() ||
+                    isLoading ||
+                    inputMessage.length > 1000
+                  }
+                  className="p-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || isLoading}
-                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
-              >
-                <Send className="h-4 w-4" />
-              </button>
             </div>
           </div>
         </div>
