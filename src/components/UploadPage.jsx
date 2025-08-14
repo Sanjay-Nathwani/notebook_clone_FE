@@ -69,7 +69,7 @@ const UploadPage = ({ onUploadComplete }) => {
         });
       }, 200);
 
-      const response = await fetch(`/api/upload`, {
+      const response = await fetch(`https://notebook-clone-be.onrender.com/api/upload`, {
         method: 'POST',
         body: formData,
       });

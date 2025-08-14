@@ -44,7 +44,7 @@ const ChatPage = ({ documentData, onBack }) => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('https://notebook-clone-be.onrender.com/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
