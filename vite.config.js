@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      "/api": "http://localhost:6000",
+      "/api": "https://notebook-clone-be.onrender.com",
     },
   },
 });
